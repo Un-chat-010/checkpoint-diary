@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>检查点</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Noto+Serif+SC:wght@300;400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:       #e8f1f8;
+  --surface:  #f0f6fb;
+  --card:     rgba(255,255,255,0.82);
+  --text:     #1e303f;
+  --soft:     #6a8898;
+  --muted:    #a8c0cc;
+  --border:   rgba(100,155,190,.18);
+  --border2:  rgba(100,155,190,.3);
+
+  --blue:     #6aaac8;
+  --blue2:    #4888aa;
+  --bluepale: #c8dfec;
+  --bluedeep: #3a6880;
+
+  --yell:     #c8b84a;
+  --yell2:    #b0a030;
+  --yellpale: #f0e898;
+  --yellcard: rgba(240,232,150,.25);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Noto Serif SC', serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 40px 20px 100px;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 700px 500px at 90% -5%, rgba(200,230,248,.5) 0%, transparent 65%),
+    radial-gradient(ellipse 500px 400px at -5% 100%, rgba(200,222,240,.4) 0%, transparent 65%),
+    radial-gradient(ellipse 400px 300px at 50% 55%, rgba(240,232,150,.12) 0%, transparent 65%);
+  pointer-events: none; z-index: 0;
+}
+.wrap { width: 100%; max-width: 560px; position: relative; z-index: 1; }
+
+.screen { display: none; }
+.screen.active { display: block; animation: rise .5s cubic-bezier(.22,1,.36,1) both; }
+@keyframes rise { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
+
+/* TYPE */
+.label { font-size:10px; letter-spacing:.3em; text-transform:uppercase; color:var(--blue2); margin-bottom:12px; opacity:.75; }
+.display { font-family:'Cormorant Garamond',serif; font-size:36px; font-weight:300; line-height:1.35; letter-spacing:.02em; color:var(--text); margin-bottom:10px; }
+.subtitle { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:17px; color:var(--soft); line-height:1.75; margin-bottom:36px; }
+
+/* INPUTS */
+.field-area {
+  width:100%; background:rgba(255,255,255,.8); border:1.5px solid var(--border);
+  border-radius:16px; padding:18px 22px; font-family:'Noto Serif SC',serif; font-size:15px;
+  color:var(--text); outline:none; resize:none; min-height:110px; line-height:1.9;
+  transition:border-color .25s, box-shadow .25s; caret-color:var(--blue);
+}
+.field-area:focus { border-color:rgba(106,170,200,.5); box-shadow:0 0 0 4px rgba(106,170,200,.1); }
+.field-area::placeholder { color:var(--muted); }
+
+textarea {
+  width:100%; background:rgba(255,255,255,.65); border:1.5px solid var(--border);
+  border-radius:12px; padding:13px 17px; font-family:'Noto Serif SC',serif; font-size:13px;
+  color:var(--text); resize:vertical; min-height:82px; outline:none; line-height:1.9;
+  transition:border-color .2s; caret-color:var(--blue);
+}
+textarea:focus { border-color:rgba(106,170,200,.45); background:white; }
+textarea::placeholder { color:var(--muted); }
+
+.api-input {
+  width:100%; background:rgba(255,255,255,.8); border:1.5px solid var(--border);
+  border-radius:12px; padding:14px 20px; font-family:'Noto Serif SC',serif; font-size:13px;
+  color:var(--text); outline:none; transition:border-color .2s; margin-bottom:16px;
+}
+.api-input:focus { border-color:rgba(106,170,200,.45); }
+
+/* TAGS */
+.tags { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 30px; }
+.tag {
+  padding:7px 16px; border:1.5px solid var(--border); border-radius:40px;
+  font-size:12px; color:var(--soft); cursor:pointer; transition:all .2s;
+  background:rgba(255,255,255,.5); user-select:none; letter-spacing:.03em;
+}
+.tag:hover { border-color:var(--blue); color:var(--blue2); background:rgba(106,170,200,.08); }
+.tag.on { border-color:var(--blue); color:var(--blue2); background:rgba(106,170,200,.12); }
+
+/* SLIDERS */
+.fq { margin-bottom:22px; }
+.fq-row { display:flex; justify-content:space-between; font-size:12px; letter-spacing:.06em; color:var(--soft); margin-bottom:10px; }
+.fq-val { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:16px; color:var(--blue2); }
+input[type=range] { -webkit-appearance:none; width:100%; height:2px; background:var(--bluepale); border-radius:2px; outline:none; cursor:pointer; }
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
+  background:white; border:2.5px solid var(--blue); box-shadow:0 0 0 3px rgba(106,170,200,.15);
+  transition:box-shadow .2s;
+}
+input[type=range]::-webkit-slider-thumb:hover { box-shadow:0 0 0 5px rgba(106,170,200,.22); }
+.sl-labels { display:flex; justify-content:space-between; font-family:'Cormorant Garamond',serif; font-style:italic; font-size:12px; color:var(--muted); margin-top:6px; }
+
+/* BUTTONS */
+.btn { width:100%; padding:15px; border:none; border-radius:14px; font-family:'Noto Serif SC',serif; font-size:12px; letter-spacing:.22em; cursor:pointer; transition:all .25s; display:block; }
+.btn+.btn { margin-top:10px; }
+.btn-primary { background:linear-gradient(135deg, var(--blue) 0%, var(--bluedeep) 100%); color:white; font-weight:600; }
+.btn-primary:hover { transform:translateY(-2px); box-shadow:0 8px 28px rgba(58,104,128,.28); }
+.btn-ghost { background:transparent; border:1.5px solid var(--border2); color:var(--soft); }
+.btn-ghost:hover { border-color:var(--blue); color:var(--blue2); }
+.btn-generate { background:rgba(255,255,255,.7); border:1.5px solid var(--border2); color:var(--blue2); margin-top:24px; }
+.btn-generate:hover { background:rgba(106,170,200,.1); border-color:var(--blue); }
+.btn-generate:disabled { opacity:.5; cursor:wait; }
+
+/* TOOL PANEL */
+.tool-panel { background:rgba(255,255,255,.75); border:1.5px solid var(--border); border-radius:20px; padding:32px; backdrop-filter:blur(12px); }
+.tool-name { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:400; letter-spacing:.04em; margin-bottom:6px; }
+.tool-opening { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:15px; color:var(--soft); line-height:1.75; margin-bottom:26px; }
+.field-block { margin-bottom:20px; }
+.field-label { display:block; font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+.field-hint { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:13px; color:var(--blue); margin-bottom:8px; display:block; line-height:1.6; opacity:.9; }
+
+/* Odyssey */
+.ody { margin-bottom:18px; }
+.ody-head { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+.ody-marker { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; flex-shrink:0; }
+.ody-a .ody-marker { background:rgba(106,170,200,.15); color:var(--blue2); border:1.5px solid rgba(106,170,200,.3); }
+.ody-b .ody-marker { background:rgba(200,184,74,.15); color:var(--yell2); border:1.5px solid rgba(200,184,74,.3); }
+.ody-c .ody-marker { background:rgba(58,104,128,.12); color:var(--bluedeep); border:1.5px solid rgba(58,104,128,.2); }
+.ody-title { font-size:12px; letter-spacing:.1em; color:var(--soft); }
+.ody-hint-text { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:13px; color:var(--muted); margin-bottom:8px; line-height:1.6; padding-left:40px; }
+
+/* Wheel */
+.wheel-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+.wm-label { display:flex; justify-content:space-between; font-size:11px; letter-spacing:.06em; color:var(--soft); margin-bottom:8px; }
+.wm-val { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:15px; color:var(--blue2); letter-spacing:0; }
+.wheel-fb { padding:14px 20px; background:rgba(200,223,236,.2); border:1.5px solid rgba(106,170,200,.2); border-radius:12px; font-family:'Cormorant Garamond',serif; font-style:italic; font-size:15px; color:var(--text); line-height:1.8; margin-bottom:22px; transition:all .4s; }
+
+/* THINKING */
+.thinking-wrap { text-align:center; padding:64px 0; }
+.t-dots { display:flex; justify-content:center; gap:10px; margin-bottom:24px; }
+.t-dot { width:7px; height:7px; border-radius:50%; background:var(--blue); opacity:.25; animation:tpulse 1.5s ease infinite; }
+.t-dot:nth-child(2){animation-delay:.25s;} .t-dot:nth-child(3){animation-delay:.5s;}
+@keyframes tpulse { 0%,100%{opacity:.25;transform:scale(1)} 50%{opacity:.9;transform:scale(1.4)} }
+.t-text { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:18px; color:var(--soft); }
+
+/* REPORT */
+.r-top { margin-bottom:28px; padding-bottom:26px; border-bottom:1px solid var(--border); }
+.r-meta { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+.r-date { font-size:11px; letter-spacing:.18em; color:var(--muted); text-transform:uppercase; }
+.r-sep { width:3px; height:3px; border-radius:50%; background:var(--muted); }
+.r-badge { font-size:11px; letter-spacing:.15em; color:var(--blue2); text-transform:uppercase; }
+.r-headline { font-family:'Cormorant Garamond',serif; font-size:30px; font-weight:400; line-height:1.4; letter-spacing:.02em; color:var(--text); margin-bottom:14px; }
+.r-insight { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:16px; color:var(--soft); line-height:1.95; }
+
+.r-card { background:var(--card); border:1.5px solid var(--border); border-radius:18px; padding:26px 28px; margin-bottom:14px; backdrop-filter:blur(8px); }
+.r-card-lbl { font-size:10px; letter-spacing:.25em; text-transform:uppercase; color:var(--muted); margin-bottom:18px; }
+
+/* Metric rings */
+.metrics { display:flex; gap:8px; justify-content:space-around; }
+.metric { text-align:center; flex:1; }
+.m-ring { width:76px; height:76px; margin:0 auto 10px; position:relative; display:flex; align-items:center; justify-content:center; }
+.m-ring svg { position:absolute; inset:0; transform:rotate(-90deg); }
+.m-ring circle { fill:none; stroke-width:4.5; stroke-linecap:round; }
+.m-bg { stroke:rgba(100,155,190,.12); }
+.m-fg { stroke-dasharray:188; transition:stroke-dashoffset 1.4s cubic-bezier(.22,1,.36,1); }
+.m-val { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:500; position:relative; z-index:1; }
+.m-name { font-size:10px; letter-spacing:.08em; color:var(--muted); line-height:1.5; }
+
+/* Bars */
+.bar { margin-bottom:13px; }
+.bar-row { display:flex; justify-content:space-between; font-size:12px; letter-spacing:.05em; color:var(--soft); margin-bottom:7px; }
+.bar-num { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:15px; color:var(--blue2); letter-spacing:0; }
+.bar-track { height:5px; background:rgba(100,155,190,.1); border-radius:3px; overflow:hidden; }
+.bar-fill { height:100%; border-radius:3px; width:0; transition:width 1.2s cubic-bezier(.22,1,.36,1); }
+
+.ai-callout { margin-top:16px; padding:14px 18px; background:rgba(240,232,150,.2); border-left:2.5px solid rgba(200,184,74,.5); border-radius:0 10px 10px 0; font-family:'Cormorant Garamond',serif; font-style:italic; font-size:15px; color:var(--text); line-height:1.8; }
+
+/* Mirror */
+.mirror { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:4px; }
+.mirror-side { border-radius:14px; padding:18px 20px; font-family:'Cormorant Garamond',serif; font-style:italic; font-size:14px; line-height:1.9; }
+.mirror-friend { background:rgba(106,170,200,.1); border:1.5px solid rgba(106,170,200,.2); }
+.mirror-self { background:var(--yellcard); border:1.5px solid rgba(200,184,74,.25); }
+.mirror-lbl { font-family:'Noto Serif SC',serif; font-style:normal; font-size:9px; letter-spacing:.22em; text-transform:uppercase; color:var(--muted); margin-bottom:10px; display:block; }
+
+/* Pattern */
+.pattern-card { background:linear-gradient(135deg,rgba(106,170,200,.08),rgba(240,232,150,.12)); border:1.5px solid rgba(106,170,200,.2); border-radius:16px; padding:22px 26px; margin-bottom:14px; }
+.pattern-pre { font-family:'Cormorant Garamond',serif; font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:var(--blue); margin-bottom:10px; opacity:.8; }
+.pattern-txt { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:15px; color:var(--text); line-height:1.9; }
+
+/* Closing */
+.closing-card { text-align:center; padding:32px 28px; background:rgba(255,255,255,.75); border:1.5px solid var(--border); border-radius:18px; margin-bottom:14px; }
+.closing-orn { font-family:'Cormorant Garamond',serif; font-size:22px; color:var(--yell); margin-bottom:12px; opacity:.7; }
+.closing-txt { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:19px; color:var(--text); line-height:1.85; }
+
+/* Radar */
+.chart-wrap { height:250px; max-width:280px; margin:0 auto 12px; position:relative; }
+
+/* Gear */
+.gear { position:fixed; top:20px; right:20px; width:36px; height:36px; background:rgba(255,255,255,.7); border:1.5px solid var(--border); border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:14px; color:var(--soft); transition:all .2s; backdrop-filter:blur(8px); z-index:50; }
+.gear:hover { color:var(--blue2); border-color:var(--blue); }
+
+/* Toast */
+.toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(14px); background:var(--bluedeep); color:white; padding:10px 26px; border-radius:40px; font-size:12px; letter-spacing:.15em; opacity:0; transition:all .3s; pointer-events:none; z-index:99; }
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+@media(max-width:480px){ .display{font-size:28px;} .mirror,.wheel-grid,.metrics{grid-template-columns:1fr;} .tool-panel,.r-card{padding:22px 18px;} }
+</style>
+</head>
+<body>
+<button class="gear" onclick="showScreen('setup')">⚙</button>
+<div class="wrap">
+
+<div class="screen" id="s-setup">
+  <div style="margin-bottom:36px;"><div class="label">首次设置</div><div class="display">DeepSeek API Key</div><div class="subtitle">只存在你的浏览器本地，从不外传。</div></div>
+  <input class="api-input" type="password" id="apiKeyInput" placeholder="sk-..." autocomplete="off"/>
+  <button class="btn btn-primary" onclick="saveKey()">保存，开始使用</button>
+</div>
+
+<div class="screen" id="s-checkin">
+  <div style="margin-bottom:32px;"><div class="label">检查点</div><div class="display">此刻的你，怎么了？</div><div class="subtitle">随便说，几个字也行。</div></div>
+  <textarea class="field-area" id="mainInput" placeholder="脑子里在转什么……" rows="4" style="border-radius:16px;min-height:110px;"></textarea>
+  <div class="tags"><span class="tag" onclick="toggleTag(this)">很焦虑</span><span class="tag" onclick="toggleTag(this)">有点麻木</span><span class="tag" onclick="toggleTag(this)">迷茫</span><span class="tag" onclick="toggleTag(this)">拖着一件事</span><span class="tag" onclick="toggleTag(this)">不知道想要什么</span><span class="tag" onclick="toggleTag(this)">身体很累</span><span class="tag" onclick="toggleTag(this)">还好</span></div>
+  <div style="margin-bottom:36px;">
+    <div class="fq"><div class="fq-row"><span>最近一周，整体能量</span><span class="fq-val" id="lv-e">5</span></div><input type="range" min="1" max="10" value="5" id="sl-energy" oninput="document.getElementById('lv-e').textContent=this.value"><div class="sl-labels"><span>很低落</span><span>很好</span></div></div>
+    <div class="fq"><div class="fq-row"><span>有件事一直在回避</span><span class="fq-val" id="lv-a">有点</span></div><input type="range" min="1" max="3" value="2" id="sl-avoid" oninput="document.getElementById('lv-a').textContent=['没有','有点','非常明确'][this.value-1]"><div class="sl-labels"><span>没有</span><span>非常明确</span></div></div>
+  </div>
+  <button class="btn btn-primary" onclick="submitCheckin()">看看你需要什么 →</button>
+</div>
+
+<div class="screen" id="s-thinking">
+  <div class="thinking-wrap"><div class="t-dots"><div class="t-dot"></div><div class="t-dot"></div><div class="t-dot"></div></div><div class="t-text" id="tText">在想……</div></div>
+</div>
+
+<div class="screen" id="s-tool">
+  <div id="toolMeta" style="margin-bottom:24px;"></div>
+  <div id="toolContainer"></div>
+  <button class="btn btn-ghost" style="margin-top:14px;" onclick="showScreen('checkin')">← 重新来过</button>
+</div>
+
+<div class="screen" id="s-report">
+  <div id="reportContainer"></div>
+  <button class="btn btn-ghost" style="margin-top:16px;" onclick="restart()">再来一次</button>
+</div>
+
+</div>
+<div class="toast" id="toast">已保存</div>
+<script>
+const wDims={career:'事业与成就',finance:'财务',health:'健康与身体',love:'伴侣与爱情',social:'家人与朋友',growth:'个人成长',meaning:'精神与意义',fun:'乐趣与休闲'};
+const ICONS={恐惧设定:'🌑',所罗门悖论:'🪞',奥德赛计划:'🗺️',生命之轮:'⭕'};
+let apiKey=localStorage.getItem('ds_key')||'',checkinData={},currentTool='',thinkInt;
+
+window.onload=()=>{ if(!apiKey)showScreen('setup'); else showScreen('checkin'); };
+function showScreen(n){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById('s-'+n).classList.add('active');}
+function saveKey(){const k=document.getElementById('apiKeyInput').value.trim();if(!k)return;localStorage.setItem('ds_key',k);apiKey=k;showScreen('checkin');}
+function toggleTag(el){el.classList.toggle('on');}
+function v(id){const el=document.getElementById(id);return el?el.value.trim():'';}
+function restart(){document.getElementById('mainInput').value='';document.querySelectorAll('.tag').forEach(t=>t.classList.remove('on'));document.getElementById('sl-energy').value=5;document.getElementById('lv-e').textContent='5';document.getElementById('sl-avoid').value=2;document.getElementById('lv-a').textContent='有点';showScreen('checkin');}
+
+async function submitCheckin(){
+  const text=document.getElementById('mainInput').value.trim();
+  const tags=[...document.querySelectorAll('.tag.on')].map(t=>t.textContent);
+  const energy=document.getElementById('sl-energy').value,avoid=document.getElementById('sl-avoid').value;
+  checkinData={text,tags,energy,avoid};
+  startThinking();
+  try{const r=await aiSelectTool(text,tags,energy,avoid);clearInterval(thinkInt);currentTool=r.tool;renderTool(r);}
+  catch(e){clearInterval(thinkInt);const fb=heuristic(avoid,tags);currentTool=fb.tool;renderTool(fb);}
+}
+function startThinking(){
+  showScreen('thinking');const msgs=['在读你刚才说的……','看看哪个方向合适……','快好了……'];
+  let i=0;document.getElementById('tText').textContent=msgs[0];
+  thinkInt=setInterval(()=>{i=(i+1)%msgs.length;document.getElementById('tText').textContent=msgs[i];},1800);
+}
+async function aiSelectTool(text,tags,energy,avoid){
+  const hs=getHistory(3).map(h=>`[${h.type} ${h.date}] ${h.preview}`).join('\n')||'无';
+  const p=`深度思考教练。选工具。用户：描述="${text||'无'}" 标签="${tags.join('、')||'无'}" 能量=${energy}/10 回避=${['无','有点','非常明确'][avoid-1]} 历史：${hs}。工具：1.恐惧设定（有明确回避）2.所罗门悖论（需换视角）3.奥德赛计划（方向迷茫）4.生命之轮（状态模糊）。只返回JSON：{"tool":"工具名","reason":"15字内第二人称","opening":"15字内引导语"}`;
+  const res=await ds([{role:'user',content:p}],120);
+  return JSON.parse(res.replace(/```json|```/g,'').trim());
+}
+function heuristic(avoid,tags){
+  if(avoid==3||tags.includes('拖着一件事'))return{tool:'恐惧设定',reason:'你有件事一直没动',opening:'说说你在回避什么？'};
+  if(tags.includes('迷茫')||tags.includes('不知道想要什么'))return{tool:'奥德赛计划',reason:'先画三条路看看',opening:'如果现在的路消失了……'};
+  if(tags.includes('很焦虑')||tags.includes('有点麻木'))return{tool:'所罗门悖论',reason:'换个视角看自己',opening:'把自己当成需要建议的朋友'};
+  return{tool:'生命之轮',reason:'先摸清哪里出问题了',opening:'把八个维度都标一下'};
+}
+function renderTool(r){
+  document.getElementById('toolMeta').innerHTML=`<div class="label">为你选的</div><div style="font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:400;letter-spacing:.04em;margin-bottom:6px;">${ICONS[r.tool]||'✦'}  ${r.tool}</div><div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:15px;color:var(--soft);line-height:1.7;">${r.reason}</div>`;
+  const c=document.getElementById('toolContainer');
+  if(r.tool==='恐惧设定')c.innerHTML=fearH(r.opening);
+  else if(r.tool==='所罗门悖论')c.innerHTML=solomonH(r.opening);
+  else if(r.tool==='奥德赛计划')c.innerHTML=odysseyH(r.opening);
+  else c.innerHTML=wheelH(r.opening);
+  showScreen('tool');
+}
+function fearH(op){return`<div class="tool-panel"><div class="tool-name">🌑 恐惧设定</div><div class="tool-opening">${op}</div><div class="field-block"><span class="field-label">我正在回避的事</span><textarea id="f1" placeholder="具体说出来……"></textarea></div><div class="field-block"><span class="field-label">最坏的情况</span><span class="field-hint">写具体的后果，不要模糊。</span><textarea id="f2" placeholder="最坏会是……"></textarea></div><div class="field-block"><span class="field-label">如果发生了，如何修复</span><textarea id="f3" placeholder="我可以……"></textarea></div><div class="field-block"><span class="field-label">不行动的代价</span><span class="field-hint">一年后。三年后。</span><textarea id="f4" placeholder="如果什么都不做……"></textarea></div><button class="btn btn-generate" onclick="generateReport('fear')">生成报告 →</button></div>`;}
+function solomonH(op){return`<div class="tool-panel"><div class="tool-name">🪞 所罗门悖论</div><div class="tool-opening">${op}</div><div class="field-block"><span class="field-label">这个处境是什么</span><textarea id="s1" placeholder="描述你正在面对的……"></textarea></div><div class="field-block"><span class="field-label">如果是你的朋友，你会说</span><span class="field-hint">用"你"开头。不评判，只关心。</span><textarea id="s2" placeholder="你应该……" style="min-height:110px;"></textarea></div><div class="field-block"><span class="field-label">你愿意对自己说同样的话吗</span><textarea id="s3" placeholder="写下感受……"></textarea></div><button class="btn btn-generate" onclick="generateReport('solomon')">生成报告 →</button></div>`;}
+function odysseyH(op){return`<div class="tool-panel"><div class="tool-name">🗺️ 奥德赛计划</div><div class="tool-opening">${op}</div><div class="ody ody-a"><div class="ody-head"><div class="ody-marker">A</div><div class="ody-title">延续现有方向</div></div><div class="ody-hint-text">五年后走到哪里？</div><textarea id="o1" style="min-height:70px;" placeholder="继续走下去……"></textarea></div><div class="ody ody-b"><div class="ody-head"><div class="ody-marker">B</div><div class="ody-title">路径 A 消失了</div></div><div class="ody-hint-text">突然不可能了，你会做什么？</div><textarea id="o2" style="min-height:70px;" placeholder="我会……"></textarea></div><div class="ody ody-c"><div class="ody-head"><div class="ody-marker">C</div><div class="ody-title">什么都不是问题</div></div><div class="ody-hint-text">没有"但是"。</div><textarea id="o3" style="min-height:70px;" placeholder="如果一切都可以……"></textarea></div><div class="field-block" style="margin-top:18px;"><span class="field-label">你注意到了什么</span><textarea id="o4" placeholder="浮现的感受……"></textarea></div><button class="btn btn-generate" onclick="generateReport('odyssey')">生成报告 →</button></div>`;}
+function wheelH(op){return`<div class="tool-panel"><div class="tool-name">⭕ 生命之轮</div><div class="tool-opening">${op}</div><div class="wheel-grid">${Object.entries(wDims).map(([k,n])=>`<div><div class="wm-label"><span>${n}</span><span class="wm-val" id="wv-${k}">5</span></div><input type="range" min="1" max="10" value="5" id="wr-${k}" oninput="wUpdate('${k}',this.value)"></div>`).join('')}</div><div class="wheel-fb" id="wfb">拨动滑块，看看现在的分布。</div><div class="field-block"><span class="field-label">你注意到了什么</span><textarea id="w-notes" placeholder="看着这些数字……"></textarea></div><button class="btn btn-generate" onclick="generateReport('wheel')">生成报告 →</button></div>`;}
+
+function wUpdate(k,val){
+  document.getElementById('wv-'+k).textContent=val;
+  const vals={};Object.keys(wDims).forEach(d=>{const el=document.getElementById('wr-'+d);if(el)vals[d]=parseInt(el.value);});
+  const fb=document.getElementById('wfb');if(!fb)return;
+  const vv=Object.values(vals);let msg='';
+  if(vals.career>8&&vals.health<4)msg='你在燃烧，但燃料快耗尽了。';
+  else if(vals.meaning<3)msg='有东西在，但不知道为什么要做。';
+  else if(vals.finance<3)msg='钱的焦虑会悄悄渗进其他一切。';
+  else if(vals.growth>8)msg='你在快速进化，注意别落下其他人。';
+  else if(vals.love===Math.min(...vv)&&vals.love<5)msg='感情是最容易被遗忘的那一块。';
+  else if(vv.every(x=>x>=4&&x<=6))msg='稳定，但也许有点无聊。';
+  else if(vv.every(x=>x>7))msg='此刻你站在一个很好的地方。';
+  else{const mk=Object.keys(vals).reduce((a,b)=>vals[a]<=vals[b]?a:b);msg=wDims[mk]+'，是最需要关注的地方。';}
+  fb.textContent=msg;
+}
+
+async function generateReport(type){
+  const btn=event.target;btn.textContent='生成中……';btn.disabled=true;
+  const td=collectData(type);
+  const hs=getHistory(3).map(h=>`[${h.type} ${h.date}] ${h.preview}`).join('\n')||'无';
+  let p='';
+  if(type==='fear')p=`用户填写恐惧设定：回避="${td.f1}" 最坏="${td.f2}" 修复="${td.f3}" 代价="${td.f4}" 历史：${hs}\n返回JSON：{"headline":"核心洞察18字内","insight":"2-3句温柔分析","metrics":{"fear_level":1-10,"fixability":1-10,"cost_of_inaction":1-10},"pattern":"跨时间观察或空串","closing":"一句像朋友说的话"}`;
+  else if(type==='solomon')p=`用户填写所罗门悖论：处境="${td.s1}" 给朋友="${td.s2}" 对自己="${td.s3}" 历史：${hs}\n返回JSON：{"headline":"核心洞察18字内","insight":"2-3句聚焦落差","key_advice":"最核心一句20字内","gap_level":1-10,"self_compassion":1-10,"pattern":"或空串","closing":"一句像朋友说的话"}`;
+  else if(type==='odyssey')p=`用户填写奥德赛计划：A="${td.o1}" B="${td.o2}" C="${td.o3}" 感受="${td.o4}" 历史：${hs}\n返回JSON：{"headline":"核心洞察18字内","insight":"2-3句聚焦三路能量差异","path_energies":{"A":1-10,"B":1-10,"C":1-10},"true_desire":"A或B或C","true_desire_reason":"一句话","pattern":"或空串","closing":"一句像朋友说的话"}`;
+  else{const vals={};Object.keys(wDims).forEach(k=>{const el=document.getElementById('wr-'+k);if(el)vals[k]=parseInt(el.value);});td.values=vals;p=`用户填写生命之轮：${Object.entries(vals).map(([k,v])=>`${wDims[k]}=${v}`).join(' ')} 备注="${td.notes}" 历史：${hs}\n返回JSON：{"headline":"核心洞察18字内","insight":"2-3句指出最值得关注的组合","wheel_values":${JSON.stringify(vals)},"highlight_dim":"最需关注的key英文","highlight_reason":"一句话","pattern":"或空串","closing":"一句像朋友说的话"}`;}
+  try{
+    const raw=await ds([{role:'user',content:p}],500);
+    const result=JSON.parse(raw.replace(/```json|```/g,'').trim());
+    saveEntry(type,td,result);renderReport(type,td,result);
+  }catch(e){btn.textContent='生成报告 →';btn.disabled=false;alert('生成失败，请检查 API Key。');}
+}
+
+function collectData(type){
+  if(type==='fear')return{f1:v('f1'),f2:v('f2'),f3:v('f3'),f4:v('f4')};
+  if(type==='solomon')return{s1:v('s1'),s2:v('s2'),s3:v('s3')};
+  if(type==='odyssey')return{o1:v('o1'),o2:v('o2'),o3:v('o3'),o4:v('o4')};
+  const vals={};Object.keys(wDims).forEach(k=>{const el=document.getElementById('wr-'+k);if(el)vals[k]=parseInt(el.value);});return{values:vals,notes:v('w-notes')};
+}
+
+function renderReport(type,data,r){
+  const date=new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric'});
+  const icon=ICONS[currentTool]||'✦';
+  let vis='';
+  if(type==='fear'){
+    const m=r.metrics||{fear_level:5,fixability:5,cost_of_inaction:5};
+    vis=`<div class="r-card"><div class="r-card-lbl">评估指标</div><div class="metrics">${mRing('恐惧程度',m.fear_level,'#6aaac8')}${mRing('可修复性',m.fixability,'#3a6880')}${mRing('不行动代价',m.cost_of_inaction,'#c8b84a')}</div></div>`;
+  }else if(type==='solomon'){
+    vis=`<div class="r-card"><div class="r-card-lbl">你说的话</div><div class="mirror"><div class="mirror-friend"><span class="mirror-lbl">给朋友</span>"${r.key_advice||''}"</div><div class="mirror-self"><span class="mirror-lbl">对自己</span>${data.s3||'……'}</div></div><div style="margin-top:18px;" class="r-card-lbl">自我关怀</div><div class="metrics">${mRing('给朋友',Math.min(10,5+(10-(r.gap_level||5))),'#6aaac8')}${mRing('给自己',r.self_compassion||5,'#c8b84a')}</div></div>`;
+  }else if(type==='odyssey'){
+    const pe=r.path_energies||{A:5,B:5,C:5};
+    const cols={A:'#6aaac8',B:'#c8b84a',C:'#3a6880'};
+    const labs={A:'路径 A  ·  延续现有',B:'路径 B  ·  A 消失后',C:'路径 C  ·  无限制'};
+    vis=`<div class="r-card"><div class="r-card-lbl">三条路的能量</div>${['A','B','C'].map(p=>`<div class="bar"><div class="bar-row"><span>${labs[p]}${r.true_desire===p?' ✦':''}</span><span class="bar-num">${pe[p]}</span></div><div class="bar-track"><div class="bar-fill" data-w="${pe[p]*10}" style="background:${cols[p]};"></div></div></div>`).join('')}<div class="ai-callout">✦ 你真正想要的是<strong>路径 ${r.true_desire}</strong>。${r.true_desire_reason||''}</div></div>`;
+  }else{
+    vis=`<div class="r-card"><div class="r-card-lbl">生命之轮</div><div class="chart-wrap"><canvas id="radarC"></canvas></div><div class="ai-callout">最需关注：<strong>${wDims[r.highlight_dim]||''}</strong>。${r.highlight_reason||''}</div></div>`;
+  }
+  const pat=r.pattern?`<div class="pattern-card"><div class="pattern-pre">◈  跨时间观察</div><div class="pattern-txt">${r.pattern}</div></div>`:'';
+  document.getElementById('reportContainer').innerHTML=`<div style="animation:rise .5s ease both;"><div class="r-top"><div class="r-meta"><span class="r-date">${date}</span><span class="r-sep"></span><span class="r-badge">${icon} ${currentTool}</span></div><div class="r-headline">${r.headline}</div><div class="r-insight">${r.insight}</div></div>${vis}${pat}<div class="closing-card"><div class="closing-orn">✦</div><div class="closing-txt">${r.closing}</div></div></div>`;
+  showScreen('report');
+  requestAnimationFrame(()=>{
+    document.querySelectorAll('.bar-fill[data-w]').forEach(el=>{setTimeout(()=>el.style.width=el.dataset.w+'%',80);});
+    if(type==='wheel'){
+      const vals=r.wheel_values||{};const ctx=document.getElementById('radarC');
+      if(ctx)new Chart(ctx,{type:'radar',data:{labels:Object.values(wDims),datasets:[{data:Object.keys(wDims).map(k=>vals[k]||5),backgroundColor:'rgba(106,170,200,.12)',borderColor:'rgba(106,170,200,.55)',borderWidth:1.5,pointBackgroundColor:'rgba(106,170,200,.8)',pointRadius:3}]},options:{scales:{r:{beginAtZero:true,min:0,max:10,ticks:{display:false},grid:{color:'rgba(100,155,190,.12)'},pointLabels:{font:{family:"'Noto Serif SC',serif",size:10},color:'#6a8898'}}},plugins:{legend:{display:false}},animation:{duration:1200}}});
+    }
+  });
+}
+
+function mRing(name,val,color){
+  const off=188-(188*val/10);
+  return`<div class="metric"><div class="m-ring"><svg viewBox="0 0 64 64"><circle class="m-bg" cx="32" cy="32" r="30"/><circle class="m-fg" cx="32" cy="32" r="30" stroke="${color}" style="stroke-dashoffset:${off};"/></svg><div class="m-val" style="color:${color};">${val}</div></div><div class="m-name">${name}</div></div>`;
+}
+async function ds(msgs,max){
+  const res=await fetch('https://api.deepseek.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`},body:JSON.stringify({model:'deepseek-chat',messages:msgs,temperature:.75,max_tokens:max||300})});
+  if(!res.ok)throw new Error('api');
+  return(await res.json()).choices[0].message.content.trim();
+}
+function saveEntry(type,td,ai){
+  let preview=td.f1||td.s1||td.o1||ai.headline||'';
+  const entry={type:currentTool,date:new Date().toLocaleDateString('zh-CN'),preview:preview.slice(0,40),toolData:td,aiResult:ai,checkin:checkinData};
+  const saved=JSON.parse(localStorage.getItem('cp_v3')||'[]');
+  saved.unshift(entry);if(saved.length>30)saved.pop();
+  localStorage.setItem('cp_v3',JSON.stringify(saved));
+  const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);
+}
+function getHistory(n){return JSON.parse(localStorage.getItem('cp_v3')||'[]').slice(0,n);}
+</script>
+</body>
+</html>
